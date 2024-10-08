@@ -11,8 +11,11 @@ pub enum AppError {
     ConfigReadError(PathBuf, io::Error),
     ConfigParseError(PathBuf, toml::de::Error),
     ConfigSerializationError(PathBuf, toml::ser::Error),
+    InputError(dialoguer::Error),
     FileError(PathBuf, io::Error),
     DatabaseError(String),
+    MissingPrerequisites(String),
+    CommandError(String, io::Error),
 }
 
 impl fmt::Display for AppError {
@@ -48,6 +51,15 @@ impl fmt::Display for AppError {
             AppError::DatabaseError(message) => {
                 write!(f, "Database error: {}", message)
             }
+            AppError::InputError(err) => {
+                write!(f, "Input error: {}", err)
+            }
+            AppError::CommandError(cmd, err) => {
+                write!(f, "Command `{}` failed to execute: {}", cmd, err)
+            }
+            AppError::MissingPrerequisites(cmd) => {
+                write!(f, "Missing prerequisites: {}", cmd)
+            }
         }
     }
 }
@@ -59,7 +71,10 @@ impl std::error::Error for AppError {
             AppError::ConfigParseError(_, source) => Some(source),
             AppError::ConfigSerializationError(_, source) => Some(source),
             AppError::FileError(_, source) => Some(source),
+            AppError::CommandError(_, source) => Some(source),
             AppError::DatabaseError(_) => None,
+            AppError::InputError(source) => Some(source),
+            AppError::MissingPrerequisites(_) => None,
         }
     }
 }

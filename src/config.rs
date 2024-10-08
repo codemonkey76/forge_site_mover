@@ -86,16 +86,26 @@ impl Config {
         self
     }
 
-    pub fn finalize(mut self) -> Self {
+    pub fn finalize(mut self) -> AppResult<Self> {
         if self.forge_api_key.is_none() {
             self.forge_api_key = Some(
                 Input::new()
                     .with_prompt("Please enter your forge api key")
                     .interact_text()
-                    .expect("Failed to read forge api key"),
+                    .map_err(AppError::InputError)?,
             );
         }
-        self
+
+        if self.source_folder.is_none() {
+            self.source_folder = Some(
+                Input::new()
+                    .with_prompt("Please enter source folder")
+                    .interact_text()
+                    .map_err(AppError::InputError)?,
+            );
+        }
+
+        Ok(self)
     }
 
     fn default() -> Self {
