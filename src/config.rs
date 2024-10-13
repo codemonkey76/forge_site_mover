@@ -17,15 +17,18 @@ pub struct Config {
     pub source_folder: Option<String>,
     pub forge_api_key: Option<String>,
     pub dest_server_id: Option<String>,
+    pub temp_folder: Option<String>,
     pub isolated: bool,
 }
 
-//#[derive(Deserialize, Serialize, Debug)]
-//pub struct DatabaseConfig {
-//    pub name: String,
-//    pub user: String,
-//    pub password: String,
-//}
+#[derive(Debug)]
+pub struct FinalConfig {
+    pub source_folder: String,
+    pub forge_api_key: String,
+    pub dest_server_id: String,
+    pub isolated: bool,
+    pub temp_folder: String,
+}
 
 impl Config {
     pub fn load() -> AppResult<Self> {
@@ -83,10 +86,14 @@ impl Config {
             self.isolated = isolated;
         }
 
+        if let Some(temp_folder) = args.temp_folder {
+            self.temp_folder = Some(temp_folder);
+        }
+
         self
     }
 
-    pub fn finalize(mut self) -> AppResult<Self> {
+    pub fn finalize(mut self) -> AppResult<FinalConfig> {
         if self.forge_api_key.is_none() {
             self.forge_api_key = Some(
                 Input::new()
@@ -105,7 +112,37 @@ impl Config {
             );
         }
 
-        Ok(self)
+        if self.dest_server_id.is_none() {
+            self.dest_server_id = Some(
+                Input::new()
+                    .with_prompt("Please specify destination server ID")
+                    .interact_text()
+                    .map_err(AppError::InputError)?,
+            );
+        }
+
+        if self.temp_folder.is_none() {
+            self.temp_folder = Some(
+                Input::new()
+                    .with_prompt("Please specify temp folder")
+                    .interact_text()
+                    .map_err(AppError::InputError)?,
+            );
+        }
+
+        Ok(FinalConfig {
+            source_folder: self
+                .source_folder
+                .expect("source folder should be specified"),
+            forge_api_key: self
+                .forge_api_key
+                .expect("forge api key should be provided"),
+            dest_server_id: self
+                .dest_server_id
+                .expect("destination server id should be provided"),
+            temp_folder: self.temp_folder.expect("temp folder must be provided"),
+            isolated: self.isolated,
+        })
     }
 
     fn default() -> Self {
@@ -113,6 +150,7 @@ impl Config {
             source_folder: None,
             dest_server_id: None,
             forge_api_key: None,
+            temp_folder: None,
             isolated: false,
         }
     }

@@ -1,21 +1,21 @@
 use core::fmt;
-use std::{
-    fs, io,
-    path::{Path, PathBuf},
-};
+use std::{io, path::PathBuf};
 
 pub type AppResult<T> = Result<T, AppError>;
 
 #[derive(Debug)]
 pub enum AppError {
     ConfigReadError(PathBuf, io::Error),
-    ConfigParseError(PathBuf, toml::de::Error),
     ConfigSerializationError(PathBuf, toml::ser::Error),
     InputError(dialoguer::Error),
     FileError(PathBuf, io::Error),
     DatabaseError(String),
     MissingPrerequisites(String),
     CommandError(String, io::Error),
+    UnknownSiteType(PathBuf),
+    CredentialParseError(String),
+    ForgeAPIError(String),
+    RegexParseError(String),
 }
 
 impl fmt::Display for AppError {
@@ -25,14 +25,6 @@ impl fmt::Display for AppError {
                 write!(
                     f,
                     "Failed to read config file at {}: {}",
-                    path.display(),
-                    err
-                )
-            }
-            AppError::ConfigParseError(path, err) => {
-                write!(
-                    f,
-                    "Failed to parse config file at {}: {}",
                     path.display(),
                     err
                 )
@@ -60,6 +52,18 @@ impl fmt::Display for AppError {
             AppError::MissingPrerequisites(cmd) => {
                 write!(f, "Missing prerequisites: {}", cmd)
             }
+            AppError::UnknownSiteType(path) => {
+                write!(f, "Unknown site type at path: {}", path.display())
+            }
+            AppError::CredentialParseError(key) => {
+                write!(f, "Unable to parse credentials at path: {}", key)
+            }
+            AppError::RegexParseError(message) => {
+                write!(f, "Regex: {}", message)
+            }
+            AppError::ForgeAPIError(message) => {
+                write!(f, "Forge API: {}", message)
+            }
         }
     }
 }
@@ -68,13 +72,16 @@ impl std::error::Error for AppError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             AppError::ConfigReadError(_, source) => Some(source),
-            AppError::ConfigParseError(_, source) => Some(source),
             AppError::ConfigSerializationError(_, source) => Some(source),
             AppError::FileError(_, source) => Some(source),
             AppError::CommandError(_, source) => Some(source),
             AppError::DatabaseError(_) => None,
             AppError::InputError(source) => Some(source),
             AppError::MissingPrerequisites(_) => None,
+            AppError::ForgeAPIError(_) => None,
+            AppError::UnknownSiteType(_) => None,
+            AppError::CredentialParseError(_) => None,
+            AppError::RegexParseError(_) => None,
         }
     }
 }
@@ -89,10 +96,4 @@ impl From<toml::de::Error> for AppError {
     fn from(error: toml::de::Error) -> Self {
         AppError::DatabaseError(error.to_string())
     }
-}
-
-fn load_config(path: &Path) -> Result<String, AppError> {
-    let config_content =
-        fs::read_to_string(path).map_err(|e| AppError::ConfigReadError(path.to_path_buf(), e))?;
-    Ok(config_content)
 }

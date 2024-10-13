@@ -21,6 +21,10 @@ pub struct Args {
     #[arg(short, long, value_name = "SOURCE_FOLDER")]
     pub source_folder: Option<String>,
 
+    /// Temp folder
+    #[arg(short, long, value_name = "TEMP_FOLDER")]
+    pub temp_folder: Option<String>,
+
     // Create isolated environment
     #[arg(long)]
     pub isolated: Option<bool>,

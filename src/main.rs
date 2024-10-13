@@ -1,17 +1,17 @@
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
-};
+use std::path::Path;
 
-use args::Args;
 use clap::Parser;
-use config::Config;
-use error::{AppError, AppResult};
 
-mod args;
-mod config;
-mod error;
+use forge_move::{
+    args, backup, config,
+    error::AppResult,
+    feedback,
+    forge::{
+        site::{self, SiteData},
+        ForgeClient,
+    },
+    setup, site_type,
+};
 
 fn main() {
     if let Err(e) = run() {
@@ -21,61 +21,43 @@ fn main() {
 }
 
 fn run() -> AppResult<()> {
-    check_prerequisites()?;
+    setup::check_prerequisites()?;
 
-    let config = Config::load()?.from_args(Args::parse()).finalize();
+    let config = config::Config::load()?
+        .from_args(args::Args::parse())
+        .finalize()?;
 
-    println!("Config: {:?}", config);
+    let client = ForgeClient::new(&config.forge_api_key)?;
 
-    Ok(())
-}
+    let site_type = site_type::detect_site_type(Path::new(&config.source_folder))?;
 
-fn check_prerequisites() -> AppResult<()> {
-    let commands = ["gzip", "tar", "mysqldump"];
-
-    for cmd in &commands {
-        let output = Command::new("which")
-            .arg(cmd)
-            .output()
-            .map_err(|e| AppError::FileError(PathBuf::from(cmd), e))?;
-
-        if !output.status.success() {
-            return Err(AppError::MissingPrerequisites(cmd.to_string()));
+    if let Some(creds) = site_type.get_database_credentials(Path::new(&config.source_folder))? {
+        if let Some(output_path) =
+            backup::generate_output_path(&config.source_folder, &config.temp_folder, "-db.sql.gz")
+        {
+            feedback::show_spinner(
+                move || backup::backup_database(&creds, &output_path),
+                "Backing up database",
+            );
         }
     }
 
-    Ok(())
-}
-
-fn backup_database(db_name: &str, output_path: &Path) -> AppResult<()> {
-    // Start the database backup
-    let mysqldump = Command::new("mysqldump")
-        .arg(db_name)
-        .arg("--no-tablespaces")
-        .stdout(Stdio::piped())
-        .spawn()
-        .map_err(|e| AppError::CommandError("mysqldump".into(), e))?;
-
-    // Start the gzip command, piping mysqldumps output to gzip
-    let mut gzip = Command::new("gzip")
-        .arg("-c")
-        .stdin(mysqldump.stdout.unwrap())
-        .stdout(Stdio::piped())
-        .spawn()
-        .map_err(|e| AppError::CommandError("gzip".into(), e))?;
-
-    // Create the output file and write the gzip output to it
-    let mut output_file =
-        File::create(output_path).map_err(|e| AppError::FileError(output_path.to_path_buf(), e))?;
-
-    if let Some(mut gzip_stdout) = gzip.stdout.take() {
-        std::io::copy(&mut gzip_stdout, &mut output_file)
-            .map_err(|e| AppError::FileError(output_path.to_path_buf(), e))?;
+    if let Some(output_path) =
+        backup::generate_output_path(&config.source_folder, &config.temp_folder, "-files.tar.gz")
+    {
+        feedback::show_spinner(
+            move || backup::backup_files(&config, &output_path),
+            "Backing up files",
+        );
     }
 
-    // Wait for the commands to complete
-    gzip.wait()
-        .map_err(|e| AppError::CommandError("gzip".into(), e))?;
+    client.create_site("foo.com.au", &SiteData::default())?;
+
+    // Create site
+    // Create database
+    // use scp to copy files to new server
+    // use scp to copy database file
+    // restore database on new server
 
     Ok(())
 }
