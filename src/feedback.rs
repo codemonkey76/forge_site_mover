@@ -4,11 +4,12 @@ use std::{
     time::Duration,
 };
 
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 
-pub fn show_spinner<F>(task: F, message: &str)
+pub fn show_spinner<F, T>(task: F, message: &str) -> AppResult<T>
 where
-    F: FnOnce() -> AppResult<()> + Send + 'static,
+    F: FnOnce() -> AppResult<T> + Send + 'static,
+    T: Send + 'static,
 {
     let spinner_frames = vec!["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
     let spinner_len = spinner_frames.len();
@@ -24,9 +25,27 @@ where
     }
 
     // Clean up the spinner
-    println!("\r✔  {} - complete", message);
+    print!("\r"); // Clear spinner line
     io::stdout().flush().unwrap();
 
     // Ensure the task finishes
-    let _ = handle.join();
+    match handle.join() {
+        Ok(inner_result) => match inner_result {
+            Ok(result) => {
+                println!("\r✔  {} - complete", message);
+                Ok(result)
+            }
+            Err(e) => {
+                eprintln!("✖  {} - failed: {}", message, e);
+                Err(e) // Task failed, propagate error
+            }
+        },
+        Err(_) => {
+            eprintln!("✖  {} - failed: thread panicked", message);
+            Err(AppError::CommandError(
+                "show_spinner".into(),
+                std::io::Error::new(std::io::ErrorKind::Other, "Thread panicked"),
+            ))
+        }
+    }
 }

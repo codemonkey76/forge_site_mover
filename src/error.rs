@@ -16,6 +16,13 @@ pub enum AppError {
     CredentialParseError(String),
     ForgeAPIError(String),
     RegexParseError(String),
+    ReqwestError(reqwest::Error),
+}
+
+impl From<reqwest::Error> for AppError {
+    fn from(error: reqwest::Error) -> Self {
+        AppError::ReqwestError(error)
+    }
 }
 
 impl fmt::Display for AppError {
@@ -64,6 +71,9 @@ impl fmt::Display for AppError {
             AppError::ForgeAPIError(message) => {
                 write!(f, "Forge API: {}", message)
             }
+            AppError::ReqwestError(err) => {
+                write!(f, "Request Error: {}", err)
+            }
         }
     }
 }
@@ -82,6 +92,7 @@ impl std::error::Error for AppError {
             AppError::UnknownSiteType(_) => None,
             AppError::CredentialParseError(_) => None,
             AppError::RegexParseError(_) => None,
+            AppError::ReqwestError(source) => Some(source),
         }
     }
 }

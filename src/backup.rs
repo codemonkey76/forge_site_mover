@@ -22,20 +22,40 @@ pub fn backup_database(creds: &DatabaseCredentials, output_path: &Path) -> AppRe
     }
 
     // Start the database backup
-    let mysqldump = Command::new("mariadb-dump")
+    let mut mysqldump = Command::new("mariadb-dump")
         .arg(&creds.database)
         .arg("--no-tablespaces")
+        .stderr(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .map_err(|e| AppError::CommandError("mariadb-dump".into(), e))?;
 
+    let mysqldump_stdout = mysqldump.stdout.take().ok_or_else(|| {
+        AppError::CommandError(
+            "mariadb-dump".into(),
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to capture mariadb-dump output",
+            ),
+        )
+    })?;
+
     // Start the gzip command, piping mysqldumps output to gzip
     let mut gzip = Command::new("gzip")
         .arg("-c")
-        .stdin(mysqldump.stdout.unwrap())
+        .stdin(Stdio::from(mysqldump_stdout))
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| AppError::CommandError("gzip".into(), e))?;
+
+    // Connect the `mariadb-dump` output to `gzip` input
+    if let Some(mut mysqldump_stdout) = mysqldump.stdout.take() {
+        if let Some(gzip_stdin) = gzip.stdin.as_mut() {
+            std::io::copy(&mut mysqldump_stdout, gzip_stdin)
+                .map_err(|e| AppError::CommandError("gzip".into(), e))?;
+        }
+    }
 
     // Create the output file and write the gzip output to it
     let mut output_file =
