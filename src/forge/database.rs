@@ -32,4 +32,8 @@ impl ForgeClient {
     ) -> AppResult<CreateDatabaseResponse> {
         self.post_request(server_id, "databases", cdr)
     }
+
+    pub fn delete_database(&self, server_id: &str, database_id: &str) -> AppResult<()> {
+        self.delete_request(server_id, "databases", database_id)
+    }
 }

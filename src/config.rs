@@ -19,6 +19,7 @@ pub struct Config {
     pub dest_server_id: Option<String>,
     pub dest_site_name: Option<String>,
     pub dest_host: Option<String>,
+    pub dest_db: Option<String>,
     pub temp_folder: Option<String>,
     pub user_name: Option<String>,
     pub isolated: Option<bool>,
@@ -31,6 +32,7 @@ pub struct FinalConfig {
     pub dest_server_id: String,
     pub dest_site_name: String,
     pub dest_host: String,
+    pub dest_db: String,
     pub isolated: bool,
     pub user_name: Option<String>,
     pub temp_folder: String,
@@ -84,6 +86,10 @@ impl Config {
             self.dest_site_name = Some(dest_site_name);
         }
 
+        if let Some(dest_db) = args.dest_db {
+            self.dest_db = Some(dest_db);
+        }
+
         if let Some(dest_host) = args.dest_host {
             self.dest_host = Some(dest_host);
         }
@@ -134,6 +140,15 @@ impl Config {
             self.dest_site_name = Some(
                 Input::new()
                     .with_prompt("Please enter destination site name")
+                    .interact_text()
+                    .map_err(AppError::InputError)?,
+            );
+        }
+
+        if self.dest_db.is_none() {
+            self.dest_db = Some(
+                Input::new()
+                    .with_prompt("Please enter destination database name")
                     .interact_text()
                     .map_err(AppError::InputError)?,
             );
@@ -197,6 +212,9 @@ impl Config {
             dest_host: self
                 .dest_host
                 .expect("destination hostname should be provided"),
+            dest_db: self
+                .dest_db
+                .expect("destination database should be provided"),
             dest_site_name: self
                 .dest_site_name
                 .expect("destination site name should be provided"),
@@ -211,6 +229,7 @@ impl Config {
             source_folder: None,
             dest_server_id: None,
             dest_site_name: None,
+            dest_db: None,
             dest_host: None,
             forge_api_key: None,
             temp_folder: None,

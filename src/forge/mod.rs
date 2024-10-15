@@ -3,7 +3,7 @@ pub mod site;
 pub mod user;
 
 use reqwest::{
-    blocking::Client,
+    blocking::{Client, RequestBuilder},
     header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE},
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -39,6 +39,7 @@ impl ForgeClient {
                 .map_err(|_| AppError::ForgeAPIError("Unable to contruct request client".into()))?,
         })
     }
+
     pub fn post_request<T: DeserializeOwned, U: Serialize>(
         &self,
         server_id: &str,
@@ -50,10 +51,37 @@ impl ForgeClient {
             self.base_url, self.version, server_id, endpoint
         );
 
-        let response = self
-            .client
-            .post(&url)
-            .json(request_data)
+        let request_builder = self.client.post(&url).json(request_data);
+        self.send_request(request_builder)
+    }
+
+    fn delete_request<T: DeserializeOwned>(
+        &self,
+        server_id: &str,
+        endpoint: &str,
+        resource_id: &str,
+    ) -> AppResult<T> {
+        let url = format!(
+            "{}/api/{}/servers/{}/{}/{}",
+            self.base_url, self.version, server_id, endpoint, resource_id
+        );
+
+        let request_builder = self.client.delete(&url);
+        self.send_request(request_builder)
+    }
+
+    fn get_request<T: DeserializeOwned>(&self, server_id: &str, endpoint: &str) -> AppResult<T> {
+        let url = format!(
+            "{}/api/{}/servers/{}/{}",
+            self.base_url, self.version, server_id, endpoint
+        );
+
+        let request_builder = self.client.get(&url);
+        self.send_request(request_builder)
+    }
+
+    fn send_request<T: DeserializeOwned>(&self, request_builder: RequestBuilder) -> AppResult<T> {
+        let response = request_builder
             .send()
             .map_err(|e| AppError::ForgeAPIError(format!("Request failed: {}", e)))?;
 
@@ -64,7 +92,7 @@ impl ForgeClient {
                 .unwrap_or_else(|_| "No error details available".into());
 
             return Err(AppError::ForgeAPIError(format!(
-                "Request return error {}: {}",
+                "Request returned error {}: {}",
                 status, error_text
             )));
         }
@@ -73,10 +101,11 @@ impl ForgeClient {
             .text()
             .map_err(|e| AppError::ForgeAPIError(format!("Failed to read response text: {}", e)))?;
 
+        // Uncomment this line for debugging the raw response text
+        dbg!(&response_text);
+
         let parsed_response: T = serde_json::from_str(&response_text)
             .map_err(|e| AppError::ForgeAPIError(format!("Failed to parse response: {}", e)))?;
-
-        // println!("Site created with ID: {}", create_site_response.site.id);
 
         Ok(parsed_response)
     }

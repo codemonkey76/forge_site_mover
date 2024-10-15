@@ -2,7 +2,7 @@
 
 use std::{
     fs::{self, File},
-    io,
+    io::{self},
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
@@ -96,6 +96,122 @@ pub fn backup_files(config: &FinalConfig, output_path: &Path) -> AppResult<()> {
         ));
     }
 
+    Ok(())
+}
+
+pub fn restore_files(
+    archive_file: &str,
+    dest_host: &str,
+    user_name: Option<String>,
+    remote_directory: &str,
+) -> AppResult<()> {
+    dbg!(&archive_file);
+    dbg!(&dest_host);
+    dbg!(&user_name);
+    dbg!(&remote_directory);
+
+    let mut cat_process = Command::new("cat")
+        .arg(archive_file)
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|e| AppError::CommandError("cat".into(), e))?;
+
+    let cat_stdout = cat_process.stdout.take().ok_or_else(|| {
+        AppError::CommandError(
+            "cat".into(),
+            io::Error::new(io::ErrorKind::Other, "Failed to capture cat output"),
+        )
+    })?;
+
+    let remote_command = match user_name {
+        Some(user_name) => format!("sudo -u {} tar -zxpvf - -C {}", user_name, remote_directory),
+        None => format!("tar -zxpvf - -C {}", remote_directory),
+    };
+
+    let mut ssh_process = Command::new("ssh")
+        .arg(dest_host)
+        .arg(remote_command)
+        .stdin(Stdio::from(cat_stdout))
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| AppError::CommandError("ssh".into(), e))?;
+
+    if !cat_process.wait()?.success() {
+        println!("`cat` command failed.");
+        return Err(AppError::CommandError(
+            "cat".into(),
+            io::Error::new(io::ErrorKind::Other, "cat command failed"),
+        ));
+    }
+
+    if !ssh_process.wait()?.success() {
+        eprintln!("`ssh` command failed.");
+        return Err(AppError::CommandError(
+            "ssh".into(),
+            io::Error::new(io::ErrorKind::Other, "ssh command failed"),
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn restore_database(
+    archive_file: &str,
+    dest_host: &str,
+    user_name: Option<String>,
+    remote_db_name: &str,
+    password: &str,
+) -> AppResult<()> {
+    // cat /tmp/forge-move/2024-10-15/callcenter-db.sql.gz | ssh red-snowflake 'gunzip -c | mysql -u foo -ppassword'
+    let mut cat_process = Command::new("cat")
+        .arg(archive_file)
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|e| AppError::CommandError("cat".into(), e))?;
+
+    let cat_stdout = cat_process.stdout.take().ok_or_else(|| {
+        AppError::CommandError(
+            "cat".into(),
+            io::Error::new(io::ErrorKind::Other, "Failed to capture cat output"),
+        )
+    })?;
+
+    let remote_command = match user_name {
+        Some(user_name) => format!(
+            "gunzip -c | mysql -u {} -p{} {}",
+            user_name, password, remote_db_name
+        ),
+        None => format!(
+            "gunzip -c | mariadb -u forge -p{} {}",
+            password, remote_db_name
+        ),
+    };
+
+    let mut ssh_process = Command::new("ssh")
+        .arg(dest_host)
+        .arg(remote_command)
+        .stdin(Stdio::from(cat_stdout))
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| AppError::CommandError("ssh".into(), e))?;
+
+    if !cat_process.wait()?.success() {
+        println!("`cat` command failed.");
+        return Err(AppError::CommandError(
+            "cat".into(),
+            io::Error::new(io::ErrorKind::Other, "cat command failed"),
+        ));
+    }
+
+    if !ssh_process.wait()?.success() {
+        eprintln!("`ssh` command failed.");
+        return Err(AppError::CommandError(
+            "ssh".into(),
+            io::Error::new(io::ErrorKind::Other, "ssh command failed"),
+        ));
+    }
     Ok(())
 }
 

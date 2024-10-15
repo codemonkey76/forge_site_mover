@@ -25,6 +25,10 @@ pub struct Args {
     #[arg(long, value_name = "DEST_SITE_NAME")]
     pub dest_site_name: Option<String>,
 
+    /// Destination database name
+    #[arg(long, value_name = "DEST_DB")]
+    pub dest_db: Option<String>,
+
     /// Source folder
     #[arg(long, value_name = "SOURCE_FOLDER")]
     pub source_folder: Option<String>,
