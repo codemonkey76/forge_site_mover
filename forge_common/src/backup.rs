@@ -197,8 +197,8 @@ pub fn restore_database(
         .arg(dest_host)
         .arg(remote_command)
         .stdin(Stdio::from(cat_stdout))
-        //.stdout(Stdio::null())
-        //.stderr(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
         .map_err(|e| AppError::CommandError("ssh".into(), e))?;
 
