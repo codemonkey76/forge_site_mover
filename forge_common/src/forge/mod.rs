@@ -2,6 +2,8 @@ pub mod database;
 pub mod site;
 pub mod user;
 
+use std::time::Duration;
+
 use reqwest::{
     blocking::{Client, RequestBuilder},
     header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE},
@@ -52,10 +54,42 @@ impl ForgeClient {
         );
 
         let request_builder = self.client.post(&url).json(request_data);
-        self.send_request(request_builder)
+        match self.send_request(request_builder)? {
+            Some(data) => Ok(data),
+            None => Err(AppError::ForgeAPIError(
+                "Expected response data, but received none.".to_string(),
+            )),
+        }
     }
 
-    fn delete_request<T: DeserializeOwned>(
+    fn delete_request(&self, server_id: &str, endpoint: &str, resource_id: &str) -> AppResult<()> {
+        let url = format!(
+            "{}/api/{}/servers/{}/{}/{}",
+            self.base_url, self.version, server_id, endpoint, resource_id
+        );
+
+        let request_builder = self.client.delete(&url);
+        let _ = self.send_request::<()>(request_builder);
+
+        Ok(())
+    }
+
+    fn list_request<T: DeserializeOwned>(&self, server_id: &str, endpoint: &str) -> AppResult<T> {
+        let url = format!(
+            "{}/api/{}/servers/{}/{}",
+            self.base_url, self.version, server_id, endpoint
+        );
+
+        let request_builder = self.client.get(&url);
+        match self.send_request(request_builder)? {
+            Some(data) => Ok(data),
+            None => Err(AppError::ForgeAPIError(
+                "Expected response data, but received none.".to_string(),
+            )),
+        }
+    }
+
+    fn get_request<T: DeserializeOwned>(
         &self,
         server_id: &str,
         endpoint: &str,
@@ -66,21 +100,40 @@ impl ForgeClient {
             self.base_url, self.version, server_id, endpoint, resource_id
         );
 
-        let request_builder = self.client.delete(&url);
-        self.send_request(request_builder)
+        let request_builder = self.client.get(&url);
+        match self.send_request(request_builder)? {
+            Some(data) => Ok(data),
+            None => Err(AppError::ForgeAPIError(
+                "Expected response data, but received none.".to_string(),
+            )),
+        }
     }
 
-    fn get_request<T: DeserializeOwned>(&self, server_id: &str, endpoint: &str) -> AppResult<T> {
+    fn put_request<T: DeserializeOwned, U: Serialize>(
+        &self,
+        server_id: &str,
+        endpoint: &str,
+        resource_id: &str,
+        request_data: &U,
+    ) -> AppResult<T> {
         let url = format!(
-            "{}/api/{}/servers/{}/{}",
-            self.base_url, self.version, server_id, endpoint
+            "{}/api/{}/servers/{}/{}/{}",
+            self.base_url, self.version, server_id, endpoint, resource_id
         );
 
-        let request_builder = self.client.get(&url);
-        self.send_request(request_builder)
+        let request_builder = self.client.put(&url).json(request_data);
+        match self.send_request(request_builder)? {
+            Some(data) => Ok(data),
+            None => Err(AppError::ForgeAPIError(
+                "Expected response data, but received none.".to_string(),
+            )),
+        }
     }
 
-    fn send_request<T: DeserializeOwned>(&self, request_builder: RequestBuilder) -> AppResult<T> {
+    fn send_request<T: DeserializeOwned>(
+        &self,
+        request_builder: RequestBuilder,
+    ) -> AppResult<Option<T>> {
         let response = request_builder
             .send()
             .map_err(|e| AppError::ForgeAPIError(format!("Request failed: {}", e)))?;
@@ -101,12 +154,16 @@ impl ForgeClient {
             .text()
             .map_err(|e| AppError::ForgeAPIError(format!("Failed to read response text: {}", e)))?;
 
+        if response_text.trim().is_empty() {
+            return Ok(None);
+        }
+
         // Uncomment this line for debugging the raw response text
-        dbg!(&response_text);
+        //dbg!(&response_text);
 
         let parsed_response: T = serde_json::from_str(&response_text)
             .map_err(|e| AppError::ForgeAPIError(format!("Failed to parse response: {}", e)))?;
 
-        Ok(parsed_response)
+        Ok(Some(parsed_response))
     }
 }

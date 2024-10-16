@@ -105,10 +105,15 @@ pub fn restore_files(
     user_name: Option<String>,
     remote_directory: &str,
 ) -> AppResult<()> {
-    dbg!(&archive_file);
-    dbg!(&dest_host);
-    dbg!(&user_name);
-    dbg!(&remote_directory);
+    if !Path::new(archive_file).exists() {
+        return Err(AppError::CommandError(
+            "cat".into(),
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Archive file not found: {}", archive_file),
+            ),
+        ));
+    }
 
     let mut cat_process = Command::new("cat")
         .arg(archive_file)
@@ -183,7 +188,7 @@ pub fn restore_database(
             user_name, password, remote_db_name
         ),
         None => format!(
-            "gunzip -c | mariadb -u forge -p{} {}",
+            "gunzip -c | mysql -u forge -p{} {}",
             password, remote_db_name
         ),
     };
@@ -192,8 +197,8 @@ pub fn restore_database(
         .arg(dest_host)
         .arg(remote_command)
         .stdin(Stdio::from(cat_stdout))
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        //.stdout(Stdio::null())
+        //.stderr(Stdio::null())
         .spawn()
         .map_err(|e| AppError::CommandError("ssh".into(), e))?;
 

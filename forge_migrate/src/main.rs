@@ -1,11 +1,13 @@
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
+    thread,
+    time::Duration,
 };
 
 use clap::Parser;
 
-use forge_move::{
+use forge_common::{
     args, backup, config,
     error::AppResult,
     feedback,
@@ -49,8 +51,6 @@ fn run() -> AppResult<()> {
         }
     }
 
-    //dbg!(&db_archive);
-
     // Step 5. Backup files
     let mut files_archive: Option<PathBuf> = None;
     if let Some(output_path) =
@@ -63,8 +63,6 @@ fn run() -> AppResult<()> {
             "Backing up files",
         )?;
     }
-
-    //dbg!(&files_archive);
 
     // Step 6. Create forge site
     let client = Arc::new(ForgeClient::new(&config.forge_api_key)?);
@@ -84,13 +82,11 @@ fn run() -> AppResult<()> {
         "Creating forge site",
     )?;
 
-    ////dbg!(&site);
     let client_clone = Arc::clone(&client);
     let config_clone = Arc::clone(&config);
 
     // Step 7. Create destination database
     let password = generate_password(20);
-    dbg!(&password);
 
     let cdr = database::CreateDatabaseRequest {
         name: config_clone.dest_db.clone(),
@@ -103,17 +99,17 @@ fn run() -> AppResult<()> {
         "Creating forge database",
     )?;
 
-    //dbg!(&db);
-    let web_directory = site.site.web_directory.clone();
-    //let web_directory = format!("/home/foo/foo.com.au");
-    //let password = format!("o3zc7s5gxtw9fjl2pcv2");
-    //let files_archive = Some(Path::new(
-    //    "/tmp/forge-move/2024-10-15/callcenter-files.tar.gz",
-    //));
-    //let db_archive = Some(Path::new("/tmp/forge-move/2024-10-15/callcenter-db.sql.gz"));
+    let client_clone = Arc::clone(&client);
+    let config_clone = Arc::clone(&config);
+    let site_id = site.site.id.to_string();
+    // we can't restore the files straight away... need to wait for the user to be created.
+    feedback::show_spinner(
+        move || client_clone.wait_for_site_ready(&config_clone.dest_server_id, &site_id),
+        "Waiting for forge to create the site",
+    )?;
 
-    dbg!(&web_directory);
-    //dbg!(&config);
+    let web_directory = site.site.web_directory.clone();
+    //
     // Step 8. Restore files to target server
     if let Some(ref archive) = files_archive {
         let archive_clone = archive.clone();

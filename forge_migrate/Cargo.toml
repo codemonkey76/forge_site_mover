@@ -1,0 +1,9 @@
+[package]
+name = "forge_migrate"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = "4.5.20"
+forge_common = { path= "../forge_common" }
+rand = "0.8.5"
