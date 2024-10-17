@@ -2,8 +2,11 @@
 name = "forge_migrate"
 version = "0.1.0"
 edition = "2021"
+description = "A migration tool for migrating sites between Laravel Forge servers"
+license = "GPL-3.0-or-later" # GPL-3.0 or any later version
+repository = "https://github.com/codemonkey76/forge_site_mover"
 
 [dependencies]
 clap = "4.5.20"
-forge_common = { path= "../forge_common" }
+forge_common = "0.1.0"
 rand = "0.8.5"
