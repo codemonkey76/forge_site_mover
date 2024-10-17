@@ -2,6 +2,9 @@
 name = "forge_common"
 version = "0.1.0"
 edition = "2021"
+description = "Library for dealing with forge servers"
+license = "GPL-3.0-or-later" #GPL-3.0 or any later version
+repository = "https://github.com/codemonkey76/forge_site_mover"
 
 [dependencies]
 chrono = "0.4.38"
