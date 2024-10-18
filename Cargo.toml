@@ -1,3 +1,6 @@
 [workspace]
 members = ["forge_common", "forge_migrate", "forge_reset"]
 resolver = "2"
+
+[patch.crates-io]
+forge_common = { path = "../forge_common" }
